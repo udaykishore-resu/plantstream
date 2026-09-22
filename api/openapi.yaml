@@ -1,0 +1,362 @@
+openapi: 3.1.0
+info:
+  title: plantstream edge API
+  version: 1.0.0
+  summary: Read API of a plantstream edge node
+  description: |
+    Read-only API exposing the asset model, the latest contextualised value of
+    every tag, the Unified Namespace topic list, per-source health and a
+    Server-Sent Events stream of UNS messages. The API is unauthenticated by
+    design and intended for the plant network / an authenticating ingress.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  contact:
+    name: Udaykishore Resu
+    url: https://github.com/udaykishore-resu/plantstream
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: assets
+  - name: uns
+  - name: health
+  - name: ops
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Liveness
+      operationId: healthz
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+                  version: { type: string }
+  /readyz:
+    get:
+      tags: [ops]
+      summary: Readiness (plant loaded and broker connected)
+      operationId: readyz
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+  /metrics:
+    get:
+      tags: [ops]
+      summary: Prometheus metrics
+      operationId: metrics
+      responses:
+        "200":
+          description: Prometheus text exposition
+          content:
+            text/plain: {}
+  /v1/assets:
+    get:
+      tags: [assets]
+      summary: List all assets with their hierarchy position and tags
+      operationId: listAssets
+      responses:
+        "200":
+          description: Asset model
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enterprise, site, assets]
+                properties:
+                  enterprise: { type: string }
+                  site: { type: string }
+                  assets:
+                    type: array
+                    items: { $ref: "#/components/schemas/Asset" }
+  /v1/assets/{id}:
+    get:
+      tags: [assets]
+      summary: One asset
+      operationId: getAsset
+      parameters:
+        - $ref: "#/components/parameters/AssetID"
+      responses:
+        "200":
+          description: Asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/tags/{asset}/latest:
+    get:
+      tags: [assets]
+      summary: Latest contextualised value of every tag of an asset
+      operationId: latestTags
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Latest metrics (empty before the first poll)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [asset_id, class, source, count, metrics]
+                properties:
+                  asset_id: { type: string }
+                  class: { type: string }
+                  source: { type: string }
+                  count: { type: integer }
+                  metrics:
+                    type: array
+                    items: { $ref: "#/components/schemas/Metric" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/topics:
+    get:
+      tags: [uns]
+      summary: All UNS data topics with current quality
+      operationId: listTopics
+      parameters:
+        - name: filter
+          in: query
+          required: false
+          description: MQTT topic filter (`+` and `#` wildcards). URL-encode `+` as `%2B`.
+          schema: { type: string, examples: ["acme/austin/+/+/+/speed"] }
+      responses:
+        "200":
+          description: Topics
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [namespace, count, topics, lifecycle_topics]
+                properties:
+                  namespace: { type: string, description: "enterprise/site prefix" }
+                  count: { type: integer }
+                  topics:
+                    type: array
+                    items: { $ref: "#/components/schemas/TopicInfo" }
+                  lifecycle_topics:
+                    type: array
+                    items: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /v1/health/sources:
+    get:
+      tags: [health]
+      summary: Per-source collector health
+      operationId: sourceHealth
+      responses:
+        "200":
+          description: Health of every configured source
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [up, total, sources]
+                properties:
+                  up: { type: integer }
+                  total: { type: integer }
+                  sources:
+                    type: array
+                    items: { $ref: "#/components/schemas/SourceStatus" }
+  /v1/bridge:
+    get:
+      tags: [health]
+      summary: Edge→cloud bridge counters
+      operationId: bridgeStats
+      responses:
+        "200":
+          description: Bridge status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled: { type: boolean }
+                  stats: { $ref: "#/components/schemas/BridgeStats" }
+  /v1/stream:
+    get:
+      tags: [uns]
+      summary: Server-Sent Events stream of UNS messages
+      operationId: stream
+      description: |
+        Emits one `message` event per UNS publish matching the filter.
+        `data` is `{"topic": string, "retain": bool, "payload": Payload}`.
+        Comment lines (`: subscribed ...`, `: heartbeat dropped=N`) are sent on
+        connect and every 15 s. Slow clients lose messages instead of stalling
+        publishers; the cumulative drop count is in the heartbeat comment.
+      parameters:
+        - name: topic
+          in: query
+          required: false
+          description: MQTT topic filter; defaults to `#` (everything). URL-encode `+` as `%2B` and `#` as `%23`.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503":
+          description: Broker unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+components:
+  parameters:
+    AssetID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        request_id: { type: string }
+    Readiness:
+      type: object
+      required: [status, components]
+      properties:
+        status: { type: string, enum: [ready, "not ready"] }
+        components:
+          type: object
+          additionalProperties: { type: string }
+    Range:
+      type: object
+      required: [min, max]
+      properties:
+        min: { type: number }
+        max: { type: number }
+    Tag:
+      type: object
+      required: [name, datatype, topic]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        unit: { type: string }
+        datatype: { $ref: "#/components/schemas/DataType" }
+        range: { $ref: "#/components/schemas/Range" }
+        topic: { type: string, description: "enterprise/site/area/line/cell/tag" }
+    Asset:
+      type: object
+      required: [id, class, source, area, line, cell, tags]
+      properties:
+        id: { type: string }
+        class: { type: string }
+        description: { type: string }
+        source: { type: string }
+        area: { type: string }
+        line: { type: string }
+        cell: { type: string }
+        tags:
+          type: array
+          items: { $ref: "#/components/schemas/Tag" }
+    DataType:
+      type: string
+      enum: [Int16, UInt16, Int32, UInt32, Float, Double, Boolean, String]
+    Quality:
+      type: string
+      description: Worst applicable code; `properties.quality_rule` names the versioned rule that fired.
+      enum: [GOOD, STALE, FLATLINE, OUT_OF_RANGE, BAD]
+    MetricContext:
+      type: object
+      required: [asset_id, asset_class, source]
+      properties:
+        asset_id: { type: string }
+        asset_class: { type: string }
+        unit: { type: string }
+        eng_low: { type: number }
+        eng_high: { type: number }
+        source: { type: string }
+        description: { type: string }
+        quality_rule: { type: string, examples: ["quality.range@v1"] }
+    Metric:
+      type: object
+      required: [name, timestamp, datatype, value, quality, properties]
+      properties:
+        name: { type: string }
+        timestamp: { type: [integer, "null"], description: Unix epoch milliseconds }
+        datatype: { $ref: "#/components/schemas/DataType" }
+        value:
+          description: Sample value widened to the declared datatype; null in BIRTH before the first poll.
+          type: [number, boolean, string, "null"]
+        quality: { $ref: "#/components/schemas/Quality" }
+        topic: { type: string }
+        properties: { $ref: "#/components/schemas/MetricContext" }
+    Payload:
+      type: object
+      description: Sparkplug-B-inspired message body published on every UNS topic.
+      required: [type, timestamp, seq, node, metrics]
+      properties:
+        type: { type: string, enum: [BIRTH, DATA, DEATH] }
+        timestamp: { type: integer, description: Unix epoch milliseconds }
+        seq: { type: integer, minimum: 0, maximum: 255, description: Per-node sequence, wraps at 256, reset by BIRTH }
+        node: { type: string, description: Source (edge node) name }
+        metrics:
+          type: array
+          items: { $ref: "#/components/schemas/Metric" }
+    TopicInfo:
+      type: object
+      required: [topic, asset_id, tag, source]
+      properties:
+        topic: { type: string }
+        asset_id: { type: string }
+        tag: { type: string }
+        source: { type: string }
+        quality: { $ref: "#/components/schemas/Quality" }
+        last_seen: { type: integer, description: Unix epoch milliseconds }
+    SourceStatus:
+      type: object
+      required: [name, type, up, polls, failures, consecutive_failures, last_latency_ms, readings]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [modbus, sim, csv] }
+        up: { type: boolean }
+        polls: { type: integer }
+        failures: { type: integer }
+        consecutive_failures: { type: integer }
+        last_success: { type: string, format: date-time }
+        last_error: { type: string }
+        last_error_at: { type: string, format: date-time }
+        last_latency_ms: { type: number }
+        readings: { type: integer }
+    BridgeStats:
+      type: object
+      required: [sink_up, forwarded, spilled, coalesced, dropped, queue_depth, queue_bytes, inbox]
+      properties:
+        sink_up: { type: boolean }
+        forwarded: { type: integer }
+        spilled: { type: integer, description: Messages written to the store-and-forward queue }
+        coalesced: { type: integer, description: Oldest in-memory samples dropped by per-topic backpressure }
+        dropped: { type: integer, description: Messages evicted from the bounded queue (data loss) }
+        queue_depth: { type: integer }
+        queue_bytes: { type: integer }
+        inbox: { type: integer }

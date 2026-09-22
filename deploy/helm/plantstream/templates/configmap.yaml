@@ -1,0 +1,44 @@
+{{- if not .Values.plant.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plantstream.fullname" . }}-plant
+  labels:
+    {{- include "plantstream.labels" . | nindent 4 }}
+data:
+  plant.yaml: |
+    {{- .Values.plant.yaml | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plantstream.fullname" . }}-env
+  labels:
+    {{- include "plantstream.labels" . | nindent 4 }}
+data:
+  PLANTSTREAM_HTTP_ADDR: ":{{ .Values.service.port }}"
+  PLANTSTREAM_PLANT_FILE: /etc/plantstream/plant.yaml
+  PLANTSTREAM_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  PLANTSTREAM_SHUTDOWN_TIMEOUT: {{ .Values.config.shutdownTimeout | quote }}
+  PLANTSTREAM_STALE_CHECK_INTERVAL: {{ .Values.config.staleCheckInterval | quote }}
+  PLANTSTREAM_BROKER: {{ .Values.config.broker | quote }}
+  PLANTSTREAM_MQTT_URL: {{ .Values.config.mqtt.url | quote }}
+  PLANTSTREAM_MQTT_CLIENT_ID: {{ .Values.config.mqtt.clientId | quote }}
+  PLANTSTREAM_MQTT_QOS: {{ .Values.config.mqtt.qos | quote }}
+  PLANTSTREAM_BRIDGE_ENABLED: {{ .Values.bridge.enabled | quote }}
+  PLANTSTREAM_BRIDGE_FILTER: {{ .Values.bridge.filter | quote }}
+  PLANTSTREAM_BRIDGE_PER_TOPIC_MAX: {{ .Values.bridge.perTopicMax | quote }}
+  PLANTSTREAM_BRIDGE_INBOX_SIZE: {{ .Values.bridge.inboxSize | quote }}
+  PLANTSTREAM_SINK: {{ .Values.bridge.sink | quote }}
+  PLANTSTREAM_KAFKA_BROKERS: {{ .Values.bridge.kafka.brokers | quote }}
+  PLANTSTREAM_KAFKA_TOPIC: {{ .Values.bridge.kafka.topic | quote }}
+  {{- if .Values.bridge.queue.persistence.enabled }}
+  PLANTSTREAM_QUEUE_DIR: /data/queue
+  {{- end }}
+  PLANTSTREAM_QUEUE_MAX_BYTES: {{ .Values.bridge.queue.maxBytes | quote }}
+  PLANTSTREAM_QUEUE_SYNC: {{ .Values.bridge.queue.sync | quote }}
+  PLANTSTREAM_OTEL_ENDPOINT: {{ .Values.config.otel.endpoint | quote }}
+  PLANTSTREAM_OTEL_INSECURE: {{ .Values.config.otel.insecure | quote }}
+  PLANTSTREAM_TRACE_SAMPLE_RATIO: {{ .Values.config.otel.sampleRatio | quote }}
+  PLANTSTREAM_VERSION: {{ .Values.image.tag | default .Chart.AppVersion | quote }}

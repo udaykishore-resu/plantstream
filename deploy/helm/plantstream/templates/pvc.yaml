@@ -1,0 +1,16 @@
+{{- if .Values.bridge.queue.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "plantstream.fullname" . }}-queue
+  labels:
+    {{- include "plantstream.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.bridge.queue.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.bridge.queue.persistence.size }}
+{{- end }}

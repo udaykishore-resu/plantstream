@@ -1,0 +1,159 @@
+# Default values for plantstream. One release per site; the plant definition
+# is the ConfigMap below (or an existing one via plant.existingConfigMap).
+
+replicaCount: 1   # one edge node per site; scale by sites, not replicas (see docs/architecture.md)
+
+image:
+  repository: ghcr.io/udaykishore-resu/plantstream
+  tag: ""          # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Liveness/readiness probes hit the built-in endpoints.
+probes:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 5
+
+# Runtime configuration (maps 1:1 to PLANTSTREAM_* env vars).
+config:
+  logLevel: info
+  shutdownTimeout: 15s
+  staleCheckInterval: 1s
+  broker: mqtt                      # memory | mqtt
+  mqtt:
+    url: mqtt://mosquitto:1883
+    clientId: ""                    # defaults to plantstream-<site>
+    qos: 1
+    existingSecret: ""              # secret with keys username/password (optional)
+  otel:
+    endpoint: ""                    # e.g. otel-collector:4318 (OTLP/HTTP); empty disables export
+    insecure: true
+    sampleRatio: "1.0"
+
+bridge:
+  enabled: true
+  filter: "#"
+  perTopicMax: 64
+  inboxSize: 4096
+  sink: kafka                       # memory | kafka
+  kafka:
+    brokers: kafka:9092
+    topic: uns.events
+  queue:
+    maxBytes: "268435456"           # 256 MiB on-disk store-and-forward budget
+    sync: false
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: ""
+
+# Plant definition (config-as-code). Either inline or an existing ConfigMap
+# with a `plant.yaml` key (GitOps: ship it from the site's repo, see docs/gitops.md).
+plant:
+  existingConfigMap: ""
+  yaml: |
+    enterprise: acme
+    site: austin
+    sources:
+      - name: plc-line-1
+        type: sim
+        poll_interval: 1s
+    areas:
+      - name: packaging
+        lines:
+          - name: line-1
+            cells:
+              - name: filling
+                assets:
+                  - id: filler-01
+                    class: RotaryFiller
+                    source: plc-line-1
+                    tags:
+                      - name: speed
+                        unit: bpm
+                        range: { min: 0, max: 600 }
+                        sim: { signal: speed }
+                      - name: state
+                        datatype: UInt16
+                        sim: { signal: state }
+
+autoscaling:
+  # An edge node owns its sources; HPA only makes sense for API read load and
+  # is therefore off by default.
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 0
+
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  labels: {}
+
+networkPolicy:
+  enabled: true
+  # Namespaces/pods allowed to reach the API and /metrics.
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+  # Egress: DNS + broker/kafka/otel + field devices. Add PLC CIDRs here.
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

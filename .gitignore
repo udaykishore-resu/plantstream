@@ -1,0 +1,9 @@
+bin/
+data/
+coverage.out
+*.test
+*.out
+.idea/
+.vscode/
+*.swp
+.DS_Store

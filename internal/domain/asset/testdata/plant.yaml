@@ -1,0 +1,81 @@
+enterprise: acme
+site: austin
+quality:
+  stale_after: 5s
+  flatline_min_samples: 10
+sources:
+  - name: plc-line-1
+    type: modbus
+    poll_interval: 500ms
+    modbus:
+      address: 127.0.0.1:5020
+      unit_id: 1
+      timeout: 1s
+  - name: sim-line-2
+    type: sim
+    sim:
+      seed: 42
+  - name: csv-lab
+    type: csv
+    poll_interval: 100ms
+    csv:
+      path: testdata/lab.csv
+      loop: true
+areas:
+  - name: packaging
+    lines:
+      - name: line-1
+        cells:
+          - name: filling
+            assets:
+              - id: filler-01
+                class: RotaryFiller
+                description: 24-head rotary filler
+                source: plc-line-1
+                tags:
+                  - name: speed
+                    unit: bpm
+                    range: { min: 0, max: 600 }
+                    modbus: { function: holding, register: 0, type: float32 }
+                  - name: temperature
+                    unit: degC
+                    range: { min: 10, max: 120 }
+                    scale: { factor: 0.1 }
+                    modbus: { function: input, register: 0, type: int16, byte_order: ABCD }
+                  - name: state
+                    modbus: { register: 6, type: uint16 }
+                    quality: { stale_after: 10s }
+                  - name: count
+                    unit: bottles
+                    modbus: { register: 7, type: uint32, byte_order: CDAB }
+      - name: line-2
+        cells:
+          - name: filling
+            assets:
+              - id: filler-02
+                class: RotaryFiller
+                source: sim-line-2
+                tags:
+                  - name: speed
+                    unit: bpm
+                    range: { min: 0, max: 600 }
+                    sim: { signal: speed }
+                  - name: vibration
+                    unit: mm/s
+                    range: { min: 0, max: 8 }
+                    quality: { flatline_after: 30s }
+                    sim: {}
+  - name: lab
+    lines:
+      - name: bench
+        cells:
+          - name: rig
+            assets:
+              - id: rig-01
+                class: TestRig
+                source: csv-lab
+                tags:
+                  - name: pressure
+                    unit: bar
+                    datatype: Double
+                    csv: {}

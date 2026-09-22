@@ -1,0 +1,120 @@
+# plant.yaml — config-as-code for one site. This is the zero-infrastructure
+# demo used by `make run`: two packaging lines driven by the in-process line
+# simulator and a lab rig replaying a CSV file. Swap a source to `modbus` to
+# read a real PLC (see plant-modbus.yaml).
+enterprise: acme
+site: austin
+
+quality:
+  stale_after: 5s          # no sample for 5s → STALE (default: 3 × poll interval)
+  flatline_min_samples: 5  # flatline needs ≥ 5 unchanged samples AND flatline_after
+
+sources:
+  - name: plc-line-1
+    type: sim
+    poll_interval: 1s
+    sim: { seed: 42 }
+  - name: plc-line-2
+    type: sim
+    poll_interval: 1s
+    sim: { seed: 7 }
+  - name: lab-rig
+    type: csv
+    poll_interval: 2s
+    csv:
+      path: examples/lab.csv
+      loop: true
+
+areas:
+  - name: packaging
+    lines:
+      - name: line-1
+        cells:
+          - name: filling
+            assets:
+              - id: filler-01
+                class: RotaryFiller
+                description: 24-head rotary filler, 500 ml PET
+                source: plc-line-1
+                tags:
+                  - name: speed
+                    unit: bpm
+                    description: Line speed in bottles per minute
+                    range: { min: 0, max: 600 }
+                    sim: { signal: speed }
+                  - name: temperature
+                    unit: degC
+                    description: Sealing head temperature
+                    range: { min: 10, max: 120 }
+                    sim: { signal: temperature }
+                  - name: vibration
+                    unit: mm/s
+                    description: Main drive vibration, RMS velocity
+                    range: { min: 0, max: 7.1 }   # ISO 20816 zone C/D boundary
+                    quality: { flatline_after: 60s }
+                    sim: { signal: vibration }
+                  - name: state
+                    datatype: UInt16
+                    description: PackML-style machine state (0 STOPPED … 5 CHANGEOVER)
+                    sim: { signal: state }
+                  - name: count
+                    datatype: UInt32
+                    unit: bottles
+                    description: Good bottles since start
+                    sim: { signal: count }
+          - name: utilities
+            assets:
+              - id: air-01
+                class: AirSupply
+                description: Pneumatic supply for line 1
+                source: plc-line-1
+                tags:
+                  - name: pressure
+                    unit: bar
+                    range: { min: 5.5, max: 7.0 }
+                    sim: { signal: pressure }
+                  - name: ambient
+                    unit: degC
+                    range: { min: 5, max: 40 }
+                    sim: { signal: ambient }
+      - name: line-2
+        cells:
+          - name: filling
+            assets:
+              - id: filler-02
+                class: RotaryFiller
+                description: 18-head rotary filler, 1 l PET
+                source: plc-line-2
+                tags:
+                  - name: speed
+                    unit: bpm
+                    range: { min: 0, max: 600 }
+                    sim: { signal: speed }
+                  - name: temperature
+                    unit: degC
+                    range: { min: 10, max: 120 }
+                    sim: { signal: temperature }
+                  - name: state
+                    datatype: UInt16
+                    sim: { signal: state }
+  - name: lab
+    lines:
+      - name: bench
+        cells:
+          - name: rig
+            assets:
+              - id: rig-01
+                class: TestRig
+                description: Burst-pressure test rig (CSV replay)
+                source: lab-rig
+                tags:
+                  - name: pressure
+                    unit: bar
+                    datatype: Double
+                    range: { min: 0, max: 12 }
+                    csv: { column: pressure }
+                  - name: temperature
+                    unit: degC
+                    datatype: Double
+                    range: { min: 15, max: 35 }
+                    csv: { column: temperature }

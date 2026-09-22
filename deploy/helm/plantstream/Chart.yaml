@@ -1,0 +1,13 @@
+apiVersion: v2
+name: plantstream
+description: Unified Namespace edge node - collectors, quality engine, MQTT publisher and MQTT->Kafka store-and-forward bridge
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/udaykishore-resu/plantstream
+sources:
+  - https://github.com/udaykishore-resu/plantstream
+maintainers:
+  - name: Udaykishore Resu
+    url: https://github.com/udaykishore-resu
+keywords: [unified-namespace, mqtt, kafka, modbus, edge, manufacturing]

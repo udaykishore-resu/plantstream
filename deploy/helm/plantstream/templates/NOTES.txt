@@ -1,0 +1,8 @@
+plantstream {{ .Chart.AppVersion }} deployed as {{ include "plantstream.fullname" . }}.
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "plantstream.fullname" . }} 8080:{{ .Values.service.port }}
+  curl localhost:8080/readyz
+  curl localhost:8080/v1/topics
+
+Plant definition: ConfigMap {{ include "plantstream.plantConfigMap" . }} (key plant.yaml).
+Bridge: {{ if .Values.bridge.enabled }}enabled → {{ .Values.bridge.sink }}{{ else }}disabled{{ end }}.

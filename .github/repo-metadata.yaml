@@ -1,0 +1,18 @@
+# Apply with:
+#   gh repo edit udaykishore-resu/plantstream \
+#     --description "$(yq '.description' .github/repo-metadata.yaml)" \
+#     $(yq -r '.topics[] | "--add-topic " + .' .github/repo-metadata.yaml)
+description: "Unified Namespace edge platform for manufacturing: Modbus TCP collectors → ISA-95/Sparkplug-style MQTT → quality-flagged, contextualised streams bridged to Kafka with store-and-forward. Go, zero-infra local run."
+topics:
+  - go
+  - kubernetes
+  - kafka
+  - mqtt
+  - modbus
+  - unified-namespace
+  - sparkplug
+  - isa-95
+  - industrial-iot
+  - edge-computing
+  - manufacturing
+  - opentelemetry

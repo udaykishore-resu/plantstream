@@ -1,0 +1,1 @@
+{"type":"DATA","timestamp":1773500966535,"seq":7,"node":"plc-line-1","metrics":[{"name":"speed","timestamp":1773500966535,"datatype":"Float","value":480.25,"quality":"GOOD","topic":"acme/austin/packaging/line-1/filler-01/speed","properties":{"asset_id":"filler-01","asset_class":"Filler","unit":"bpm","eng_low":0,"eng_high":600,"source":"plc-line-1"}}]}

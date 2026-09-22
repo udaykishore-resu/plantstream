@@ -1,0 +1,69 @@
+# plant-modbus.yaml — the same site, but line 1 is read over Modbus TCP from
+# cmd/plc-sim (or a real PLC with the same register map). Run:
+#
+#   go run ./cmd/plc-sim -addr :5020
+#   PLANTSTREAM_PLANT_FILE=examples/plant-modbus.yaml go run ./cmd/plantstream
+#
+# Register map: see `go run ./cmd/plc-sim -print-map`.
+enterprise: acme
+site: austin
+
+quality:
+  stale_after: 3s
+
+sources:
+  - name: plc-line-1
+    type: modbus
+    poll_interval: 500ms
+    modbus:
+      address: 127.0.0.1:5020
+      unit_id: 1
+      timeout: 1s
+      max_gap: 8          # coalesce reads across up to 8 unused registers
+
+areas:
+  - name: packaging
+    lines:
+      - name: line-1
+        cells:
+          - name: filling
+            assets:
+              - id: filler-01
+                class: RotaryFiller
+                description: 24-head rotary filler read via Modbus TCP
+                source: plc-line-1
+                tags:
+                  - name: speed
+                    unit: bpm
+                    range: { min: 0, max: 600 }
+                    modbus: { function: holding, register: 0, type: float32, byte_order: ABCD }
+                  - name: temperature
+                    unit: degC
+                    range: { min: 10, max: 120 }
+                    modbus: { function: holding, register: 2, type: float32 }
+                  - name: vibration
+                    unit: mm/s
+                    range: { min: 0, max: 7.1 }
+                    modbus: { function: holding, register: 4, type: float32 }
+                  - name: state
+                    description: 0 STOPPED 1 STARTING 2 RUNNING 3 STARVED 4 FAULTED 5 CHANGEOVER
+                    modbus: { function: holding, register: 6, type: uint16 }
+                  - name: count
+                    unit: bottles
+                    modbus: { function: holding, register: 7, type: uint32 }
+          - name: utilities
+            assets:
+              - id: air-01
+                class: AirSupply
+                source: plc-line-1
+                tags:
+                  - name: ambient
+                    unit: degC
+                    range: { min: 5, max: 40 }
+                    scale: { factor: 0.1 }              # int16 tenths of a degree
+                    modbus: { function: input, register: 0, type: int16 }
+                  - name: pressure
+                    unit: bar
+                    range: { min: 5.5, max: 7.0 }
+                    scale: { factor: 0.01 }             # uint16 hundredths of a bar
+                    modbus: { function: input, register: 1, type: uint16 }
