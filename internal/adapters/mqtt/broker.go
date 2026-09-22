@@ -111,7 +111,14 @@ func New(ctx context.Context, cfg Config, log *slog.Logger) (*Broker, error) {
 		ccfg.ConnectPassword = []byte(cfg.Password)
 	}
 	if cfg.Will != nil {
-		ccfg.SetWillMessage(cfg.Will.Topic, cfg.Will.Payload, cfg.QoS, cfg.Will.Retain)
+		ccfg.WillMessage = &paho.WillMessage{
+			Topic:   cfg.Will.Topic,
+			Payload: cfg.Will.Payload,
+			QoS:     cfg.QoS,
+			Retain:  cfg.Will.Retain,
+		}
+		willDelay := uint32(2 * ccfg.KeepAlive) // matches the previous SetWillMessage default
+		ccfg.WillProperties = &paho.WillProperties{WillDelayInterval: &willDelay}
 	}
 	cm, err := autopaho.NewConnection(ctx, ccfg)
 	if err != nil {

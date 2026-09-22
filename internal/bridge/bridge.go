@@ -166,13 +166,14 @@ func (b *Bridge) Run(ctx context.Context) error {
 			return nil
 		case <-timer.C:
 			if !b.sinkUp.Load() {
-				if b.queue.Len() == 0 {
+				switch {
+				case b.queue.Len() == 0:
 					// Nothing to probe with; the next live message will.
 					b.sinkUp.Store(true)
 					b.metrics.BridgeSinkUp.Set(1)
-				} else if b.replay(ctx) {
+				case b.replay(ctx):
 					backoff = b.cfg.RetryMin
-				} else {
+				default:
 					backoff = b.fail(backoff, timer)
 					continue
 				}

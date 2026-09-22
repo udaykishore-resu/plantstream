@@ -163,7 +163,7 @@ func (s *ModbusSource) Read(ctx context.Context) ([]Reading, error) {
 	for _, b := range s.blocks {
 		regs, err := s.conn.ReadRegisters(ctx, b.Function, s.unit, b.Start, b.Count)
 		if err != nil {
-			var ex *modbus.Exception
+			var ex *modbus.ExceptionError
 			if !errors.As(err, &ex) {
 				// Transport-level problem: drop the connection so the next
 				// cycle reconnects.

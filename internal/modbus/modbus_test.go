@@ -136,7 +136,7 @@ func TestReadRegistersRequest_Validation(t *testing.T) {
 	_, err = ReadRegistersRequest(FuncReadHoldingRegisters, 65535, 2)
 	assert.ErrorIs(t, err, ErrAddressOverflow)
 	_, err = ReadRegistersRequest(0x10, 0, 1)
-	var ex *Exception
+	var ex *ExceptionError
 	assert.ErrorAs(t, err, &ex)
 }
 
@@ -164,7 +164,7 @@ func TestParseReadRegistersResponse(t *testing.T) {
 	assert.ErrorIs(t, err, ErrUnexpectedFunc)
 
 	_, err = ParseReadRegistersResponse(ExceptionResponse(FuncReadInputRegisters, ExIllegalDataAddress), FuncReadInputRegisters, 3)
-	var ex *Exception
+	var ex *ExceptionError
 	require.ErrorAs(t, err, &ex)
 	assert.Equal(t, ExIllegalDataAddress, ex.Code)
 	assert.Contains(t, ex.Error(), "illegal data address")
@@ -285,7 +285,7 @@ func TestClientServer_Loopback(t *testing.T) {
 
 	// Out of range → exception 0x02.
 	_, err = c.ReadHoldingRegisters(ctx, 1, 60, 10)
-	var ex *Exception
+	var ex *ExceptionError
 	require.ErrorAs(t, err, &ex)
 	assert.Equal(t, ExIllegalDataAddress, ex.Code)
 
@@ -341,7 +341,7 @@ func TestServer_BankFailures(t *testing.T) {
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.ReadHoldingRegisters(ctx, 1, 0, 1)
-	var ex *Exception
+	var ex *ExceptionError
 	require.ErrorAs(t, err, &ex)
 	assert.Equal(t, ExServerDeviceFailure, ex.Code)
 	_, err = c.ReadInputRegisters(ctx, 1, 0, 2)

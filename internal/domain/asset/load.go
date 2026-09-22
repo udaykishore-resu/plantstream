@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -26,7 +27,7 @@ const (
 
 // Load reads and validates a plant.yaml file.
 func Load(path string) (*Plant, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(filepath.Clean(path)) // path is the operator-supplied plant file from config
 	if err != nil {
 		return nil, fmt.Errorf("asset: read %s: %w", path, err)
 	}

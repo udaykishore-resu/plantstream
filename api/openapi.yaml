@@ -16,17 +16,24 @@ info:
     url: https://github.com/udaykishore-resu/plantstream
 servers:
   - url: http://localhost:8080
+security:
+  - bearerAuth: []
 tags:
   - name: assets
+    description: Asset model (ISA-95 hierarchy) and latest contextualised tag values.
   - name: uns
+    description: Unified Namespace topic list and the live SSE message stream.
   - name: health
+    description: Collector and edge→cloud bridge health.
   - name: ops
+    description: Liveness, readiness and Prometheus metrics for platform tooling.
 paths:
   /healthz:
     get:
       tags: [ops]
       summary: Liveness
       operationId: healthz
+      security: []
       responses:
         "200":
           description: Process is alive
@@ -37,11 +44,13 @@ paths:
                 properties:
                   status: { type: string, const: ok }
                   version: { type: string }
+        "4XX": { $ref: "#/components/responses/Error" }
   /readyz:
     get:
       tags: [ops]
       summary: Readiness (plant loaded and broker connected)
       operationId: readyz
+      security: []
       responses:
         "200":
           description: Ready
@@ -53,16 +62,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Readiness" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /metrics:
     get:
       tags: [ops]
       summary: Prometheus metrics
       operationId: metrics
+      security: []
       responses:
         "200":
           description: Prometheus text exposition
           content:
             text/plain: {}
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/assets:
     get:
       tags: [assets]
@@ -82,6 +94,7 @@ paths:
                   assets:
                     type: array
                     items: { $ref: "#/components/schemas/Asset" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/assets/{id}:
     get:
       tags: [assets]
@@ -96,6 +109,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Asset" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/tags/{asset}/latest:
     get:
       tags: [assets]
@@ -123,6 +137,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Metric" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/topics:
     get:
       tags: [uns]
@@ -152,6 +167,7 @@ paths:
                     type: array
                     items: { type: string }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/health/sources:
     get:
       tags: [health]
@@ -171,6 +187,7 @@ paths:
                   sources:
                     type: array
                     items: { $ref: "#/components/schemas/SourceStatus" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/bridge:
     get:
       tags: [health]
@@ -187,6 +204,7 @@ paths:
                 properties:
                   enabled: { type: boolean }
                   stats: { $ref: "#/components/schemas/BridgeStats" }
+        "4XX": { $ref: "#/components/responses/Error" }
   /v1/stream:
     get:
       tags: [uns]
@@ -209,14 +227,23 @@ paths:
           description: Event stream
           content:
             text/event-stream:
-              schema: { type: string }
+              schema: { $ref: "#/components/schemas/StreamEvent" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "503":
           description: Broker unavailable
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "4XX": { $ref: "#/components/responses/Error" }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        The edge node itself does not authenticate requests; deployments expose
+        it behind an authenticating ingress that validates a bearer token.
+        Liveness, readiness and metrics endpoints are exempt.
   parameters:
     AssetID:
       name: id
@@ -231,6 +258,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     BadRequest:
       description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Error:
+      description: Client error (see `error` for details)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -318,11 +350,19 @@ components:
       properties:
         type: { type: string, enum: [BIRTH, DATA, DEATH] }
         timestamp: { type: integer, description: Unix epoch milliseconds }
-        seq: { type: integer, minimum: 0, maximum: 255, description: Per-node sequence, wraps at 256, reset by BIRTH }
+        seq: { type: integer, minimum: 0, maximum: 255, description: "Per-node sequence, wraps at 256, reset by BIRTH" }
         node: { type: string, description: Source (edge node) name }
         metrics:
           type: array
           items: { $ref: "#/components/schemas/Metric" }
+    StreamEvent:
+      type: object
+      description: The JSON body of each SSE `message` event's `data` line.
+      required: [topic, payload]
+      properties:
+        topic: { type: string }
+        retain: { type: boolean }
+        payload: { $ref: "#/components/schemas/Payload" }
     TopicInfo:
       type: object
       required: [topic, asset_id, tag, source]

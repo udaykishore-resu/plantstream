@@ -17,7 +17,7 @@ register decoding with byte-order options. The demo also needs a *server*
 - MBAP frame encode/decode with transaction-id correlation and stale-response
   skipping; PDU size limits from the spec.
 - Client with per-transaction deadlines, serialised transactions (PLCs
-  misbehave when pipelined) and typed errors (`*Exception`, `ErrQuantity`, …).
+  misbehave when pipelined) and typed errors (`*ExceptionError`, `ErrQuantity`, …).
 - Server with a `RegisterBank` interface, used by `cmd/plc-sim` and the tests.
 - Register codec for int16/uint16/int32/uint32/float32 in ABCD, DCBA, BADC and
   CDAB byte orders, with encode/decode round-trip property tests and fuzzing.

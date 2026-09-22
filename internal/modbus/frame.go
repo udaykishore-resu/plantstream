@@ -62,13 +62,13 @@ func (c ExceptionCode) String() string {
 	}
 }
 
-// Exception is the error returned when the server answers with an exception PDU.
-type Exception struct {
+// ExceptionError is the error returned when the server answers with an exception PDU.
+type ExceptionError struct {
 	Function byte
 	Code     ExceptionCode
 }
 
-func (e *Exception) Error() string {
+func (e *ExceptionError) Error() string {
 	return fmt.Sprintf("modbus: function 0x%02x: %s (0x%02x)", e.Function, e.Code, byte(e.Code))
 }
 
@@ -143,7 +143,7 @@ func ReadADU(r io.Reader) (ADU, error) {
 // ReadRegistersRequest builds the PDU for FC 3 or 4.
 func ReadRegistersRequest(fn byte, addr, qty uint16) (PDU, error) {
 	if fn != FuncReadHoldingRegisters && fn != FuncReadInputRegisters {
-		return PDU{}, &Exception{Function: fn, Code: ExIllegalFunction}
+		return PDU{}, &ExceptionError{Function: fn, Code: ExIllegalFunction}
 	}
 	if qty == 0 || qty > MaxRegistersPerRead {
 		return PDU{}, ErrQuantity
@@ -191,7 +191,7 @@ func ParseReadRegistersResponse(p PDU, wantFn byte, wantQty uint16) ([]uint16, e
 		if len(p.Data) >= 1 {
 			code = ExceptionCode(p.Data[0])
 		}
-		return nil, &Exception{Function: wantFn, Code: code}
+		return nil, &ExceptionError{Function: wantFn, Code: code}
 	}
 	if p.Function != wantFn {
 		return nil, fmt.Errorf("%w: got 0x%02x want 0x%02x", ErrUnexpectedFunc, p.Function, wantFn)

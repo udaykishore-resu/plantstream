@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -329,7 +330,8 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, ": subscribed filter=%s\n\n", filter)
+	// The filter is not echoed back: it is caller-supplied input and the client already knows it.
+	_, _ = io.WriteString(w, ": subscribed\n\n") // client disconnects surface via ctx.Done()
 	flusher.Flush()
 
 	hb := time.NewTicker(s.deps.Heartbeat)
@@ -340,7 +342,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-hb.C:
-			fmt.Fprintf(w, ": heartbeat dropped=%d\n\n", dropped.Load())
+			_, _ = fmt.Fprintf(w, ": heartbeat dropped=%d\n\n", dropped.Load()) // client disconnects surface via ctx.Done()
 			flusher.Flush()
 		case m := <-ch:
 			id++
@@ -357,7 +359,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
-			fmt.Fprintf(w, "id: %d\nevent: message\ndata: %s\n\n", id, body)
+			_, _ = fmt.Fprintf(w, "id: %d\nevent: message\ndata: %s\n\n", id, body) // client disconnects surface via ctx.Done()
 			flusher.Flush()
 		}
 	}

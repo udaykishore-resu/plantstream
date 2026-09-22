@@ -160,11 +160,12 @@ func (q *Queue) recover() error {
 
 // scanSegment validates records from `from` on and truncates a torn tail.
 func scanSegment(path string, from int64) (size int64, records int, err error) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0o640)
+	// path is built by the queue from its configured directory and a fixed segment naming scheme.
+	f, err := os.OpenFile(filepath.Clean(path), os.O_RDWR, 0o600)
 	if err != nil {
 		return 0, 0, fmt.Errorf("diskqueue: open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read/truncate errors are already reported; close failure is not actionable
 	if _, err := f.Seek(from, io.SeekStart); err != nil {
 		return 0, 0, err
 	}
@@ -219,7 +220,7 @@ func (q *Queue) writeHead() error {
 	}
 	tmp := filepath.Join(q.dir, headFile+".tmp")
 	data := strconv.FormatUint(q.segments[0].id, 10) + " " + strconv.FormatInt(q.headOff, 10) + "\n"
-	if err := os.WriteFile(tmp, []byte(data), 0o640); err != nil {
+	if err := os.WriteFile(tmp, []byte(data), 0o600); err != nil {
 		return fmt.Errorf("diskqueue: write head: %w", err)
 	}
 	return os.Rename(tmp, filepath.Join(q.dir, headFile))
@@ -230,7 +231,7 @@ func (q *Queue) openWriter() error {
 		_ = q.writer.Close()
 	}
 	tail := q.segments[len(q.segments)-1]
-	f, err := os.OpenFile(tail.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
+	f, err := os.OpenFile(tail.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("diskqueue: open tail: %w", err)
 	}

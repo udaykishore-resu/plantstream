@@ -12,7 +12,7 @@ import (
 )
 
 // RegisterBank is the data source behind a Server. Implementations return an
-// *Exception to signal a protocol-level error (e.g. ExIllegalDataAddress).
+// *ExceptionError to signal a protocol-level error (e.g. ExIllegalDataAddress).
 type RegisterBank interface {
 	ReadHolding(unit byte, addr, qty uint16) ([]uint16, error)
 	ReadInput(unit byte, addr, qty uint16) ([]uint16, error)
@@ -47,8 +47,9 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		conn, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
+				// The listener was closed by our own ctx watcher: a clean shutdown, not an error.
 				s.wg.Wait()
-				return nil
+				return nil //nolint:nilerr // accept error caused by intentional listener close on ctx cancellation
 			}
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Timeout() {
@@ -66,7 +67,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 }
 
 func (s *Server) handle(ctx context.Context, conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() // may already be closed by the ctx watcher below
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 
@@ -78,7 +79,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		if err != nil {
 			if !errors.Is(err, io.EOF) && ctx.Err() == nil {
 				var ne net.Error
-				if !(errors.As(err, &ne) && ne.Timeout()) {
+				if !errors.As(err, &ne) || !ne.Timeout() {
 					s.log.Debug("modbus: connection closed", "remote", conn.RemoteAddr().String(), "err", err)
 				}
 			}
@@ -112,7 +113,7 @@ func (s *Server) dispatch(unit byte, req PDU) PDU {
 			regs, err = s.bank.ReadInput(unit, addr, qty)
 		}
 		if err != nil {
-			var ex *Exception
+			var ex *ExceptionError
 			if errors.As(err, &ex) {
 				return ExceptionResponse(req.Function, ex.Code)
 			}
@@ -171,7 +172,7 @@ func (b *MemoryBank) SetInput(addr uint16, regs []uint16) error {
 func slice(table []uint16, addr, qty uint16, fn byte) ([]uint16, error) {
 	end := int(addr) + int(qty)
 	if end > len(table) {
-		return nil, &Exception{Function: fn, Code: ExIllegalDataAddress}
+		return nil, &ExceptionError{Function: fn, Code: ExIllegalDataAddress}
 	}
 	out := make([]uint16, qty)
 	copy(out, table[addr:end])

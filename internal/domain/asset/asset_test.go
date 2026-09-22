@@ -128,6 +128,16 @@ func TestParse_Minimal(t *testing.T) {
 	assert.Equal(t, uns.TypeFloat, p.Areas[0].Lines[0].Cells[0].Assets[0].Tags[0].DataType)
 }
 
+// mustIndex returns the index of sub in s, failing the test if it is absent.
+func mustIndex(t *testing.T, s, sub string) int {
+	t.Helper()
+	i := strings.Index(s, sub)
+	if i < 0 {
+		t.Fatalf("substring %q not found in fixture", sub)
+	}
+	return i
+}
+
 func TestParse_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -160,11 +170,11 @@ func TestParse_Errors(t *testing.T) {
 			return s + "                  - name: speed\n                    sim: { signal: speed }\n"
 		}, "duplicate tag"},
 		{"duplicate asset", func(s string) string {
-			block := s[strings.Index(s, "              - id: m1"):]
+			block := s[mustIndex(t, s, "              - id: m1"):]
 			return s + block
 		}, "duplicate id"},
-		{"no areas", func(s string) string { return s[:strings.Index(s, "areas:")] + "areas: []\n" }, "at least one area"},
-		{"no tags", func(s string) string { return s[:strings.Index(s, "                tags:")] }, "at least one tag"},
+		{"no areas", func(s string) string { return s[:mustIndex(t, s, "areas:")] + "areas: []\n" }, "at least one area"},
+		{"no tags", func(s string) string { return s[:mustIndex(t, s, "                tags:")] }, "at least one tag"},
 		{"modbus source without block", func(s string) string { return strings.Replace(s, "type: sim", "type: modbus", 1) }, "modbus block is required"},
 		{"csv source without path", func(s string) string { return strings.Replace(s, "type: sim", "type: csv", 1) }, "csv.path is required"},
 	}

@@ -202,7 +202,7 @@ func TestModbusSource_ReconnectsOnTransportErrorOnly(t *testing.T) {
 
 	// Protocol exception: keep the connection.
 	fc.mu.Lock()
-	fc.err = &modbus.Exception{Function: 3, Code: modbus.ExIllegalDataAddress}
+	fc.err = &modbus.ExceptionError{Function: 3, Code: modbus.ExIllegalDataAddress}
 	fc.mu.Unlock()
 	_, err = s.Read(ctx)
 	require.Error(t, err)
@@ -281,7 +281,7 @@ func TestSimSource(t *testing.T) {
 	sim.now = func() time.Time { return now }
 
 	var last float64
-	seen := false
+	seen, changed := false, false
 	for i := 0; i < 120; i++ {
 		now = now.Add(time.Second)
 		readings, err := s.Read(context.Background())
@@ -291,13 +291,14 @@ func TestSimSource(t *testing.T) {
 			assert.Equal(t, now, r.At)
 			if r.Tag == "speed" {
 				if seen && r.Value != last {
-					seen = true
+					changed = true
 				}
 				last, seen = r.Value, true
 			}
 		}
 	}
 	assert.Greater(t, last, 0.0, "line should be moving after two minutes")
+	assert.True(t, changed, "speed should vary over time")
 	assert.NoError(t, s.Close())
 
 	_, err = NewSimSource(src, []asset.TagRef{{Tag: &asset.Tag{Name: "x", Sim: &asset.SimAddress{Signal: "nope"}}}})

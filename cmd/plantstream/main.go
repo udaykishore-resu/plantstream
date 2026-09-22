@@ -84,7 +84,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer broker.Close()
+	defer func() { _ = broker.Close() }() // best-effort shutdown; error is not actionable here
 
 	health := collectors.NewHealth()
 	node, err := edge.New(edge.Config{StaleCheckInterval: cfg.StaleCheck}, idx, broker, health, metrics, log.With("component", "edge"))
@@ -100,8 +100,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		defer sink.Close()
-		defer queue.Close()
+		defer func() { _ = sink.Close() }()  // best-effort shutdown
+		defer func() { _ = queue.Close() }() // best-effort shutdown
 		br = bridge.New(bridge.Config{
 			Filter: cfg.BridgeFilter, InboxSize: cfg.BridgeInboxSize, PerTopicMax: cfg.BridgePerTopicMax,
 		}, broker, sink, queue, metrics, log.With("component", "bridge"))

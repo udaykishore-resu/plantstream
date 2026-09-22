@@ -123,7 +123,7 @@ type Line struct {
 // NewLine builds a line in STOPPED state with the given random seed.
 func NewLine(seed int64) *Line {
 	return &Line{
-		rng:         rand.New(rand.NewSource(seed)),
+		rng:         rand.New(rand.NewSource(seed)), //nolint:gosec // non-cryptographic: deterministic simulation noise
 		targetSpeed: 480,
 		temp:        24,
 		vib:         0.4,
